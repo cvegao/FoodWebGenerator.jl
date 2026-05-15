@@ -1,7 +1,7 @@
 name = "FoodWebGenerator"
 uuid = "d2b94b97-9fea-4d28-9202-d1e5db35bbb9"
 authors = ["cvegao <constanza.vega@uv.es>"]
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
