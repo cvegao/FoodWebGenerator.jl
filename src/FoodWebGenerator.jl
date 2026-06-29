@@ -65,7 +65,7 @@ struct FoodWeb
     function FoodWeb(adj)
         size(adj, 1) == size(adj,2) || throw(ArgumentError("Adjacency matrix must be square"))
         
-        tl = trophic_levels(adj) .- 1.0  # Adjust to have basal species at TL=0
+        tl = trophic_levels(adj)
         q = trophic_coherence(adj, tl)
         c = sum(adj) / (size(adj, 1) ^ 2)
         basal = findall(==(0), sum(adj, dims=2)[:])
@@ -108,7 +108,7 @@ function trophic_levels(adj_matrix::AbstractMatrix)
     b[basal_species] .= 1
     A = diagm(b) .- adj_matrix
 
-    return A \ b
+    return A \ b .- 1.0  # Adjust to have basal species at TL=0
 end
 
 """
@@ -192,7 +192,7 @@ function generate_food_web(S::Int, C::AbstractFloat, basal::Int, seed::Int; T=0.
     end
 
     # Post-generation validation and packaging
-    tl_final = trophic_levels(adj_matrix) .- 1.0
+    tl_final = trophic_levels(adj_matrix)
     q = trophic_coherence(adj_matrix, tl_final)
     basal_species = findall(==(0), sum(adj_matrix, dims=2)[:])
 

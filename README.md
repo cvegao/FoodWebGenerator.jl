@@ -84,34 +84,41 @@ A validated structure representing a food web. Three constructors are available:
 ### `generate_food_web`
 
 ```julia
-generate_food_web(S, C, basal; rng=Random.GLOBAL_RNG, T=0.25) -> FoodWeb
-generate_food_web(S, C, basal, seed; T=0.25) -> FoodWeb
+generate_food_web(S, C, basal, seed; T=0.25)  -> FoodWeb
+generate_food_web(adj_matrix)                 -> FoodWeb
+generate_food_web(adj_matrix, trophic_levels) -> FoodWeb
 ```
 
 Generate a food web using the Preferential Preying Model.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `S` | `Int` | Number of species (nodes) |
-| `C` | `Float64` | Target connectance — fraction of realized links (`L / S²`) |
-| `basal` | `Int` | Number of basal species (producers), `1 ≤ basal < S` |
-| `rng` | `AbstractRNG` | Random number generator (method 1) |
-| `seed` | `Int` | Integer seed for a fresh `Xoshiro` RNG (method 2) |
-| `T` | `Float64` | Temperature parameter controlling trophic coherence (default: `0.25`) |
+| Parameter       | Type            | Description                                                           |
+|-----------------|-----------------|-----------------------------------------------------------------------|
+| `S`             | `Int`           | Number of species (nodes)                                             |
+| `C`             | `AbstractFloat` | Target connectance — fraction of realized links (`L / S²`)            |
+| `basal`         | `Int`           | Number of basal species (producers), `1 ≤ basal < S`                  |
+| `seed`          | `Int`           | Integer seed for a fresh `Xoshiro` RNG (method 1)                     |
+| `T`             | `AbstractFloat` | Temperature parameter controlling trophic coherence (default: `0.25`) |
+| `adj_matrix`    | `AbstractMatrix`| Predefined binary adjacency matrix (method 2 & 3)                     |
+| `trophic_level` | `AbstractArray` | Predefined trophic levels (TL ≥ 0) (method 3).                        |
 
 **Returns:** a validated `FoodWeb` object.
 
 ```julia
-# Method 1 — custom RNG
-rng = Xoshiro(123)
-fw  = generate_food_web(50, 0.10, 5; rng=rng)
-
-# Method 2 — integer seed (recommended for reproducibility)
+# Method 1
 fw  = generate_food_web(50, 0.10, 5, 123)
 
 # Adjust trophic coherence via temperature
 fw_coherent    = generate_food_web(50, 0.10, 5, 1; T=0.1)   # more coherent
 fw_incoherent  = generate_food_web(50, 0.10, 5, 1; T=1.0)   # less coherent
+
+# Method 2
+adj_matrix = [0 0 0; 1 0 0; 0 1 0]
+fw         = generate_food_web(adj_matrix)
+
+# Method 3
+adj_matrix     = [0 0 0; 1 0 0; 0 1 0]
+trophic_levels = [0, 1, 2]
+fw             = generate_food_web(adj_matrix, trophic_levels)
 ```
 
 ---
@@ -119,7 +126,7 @@ fw_incoherent  = generate_food_web(50, 0.10, 5, 1; T=1.0)   # less coherent
 ### `trophic_levels`
 
 ```julia
-trophic_levels(adj_matrix::Matrix{Int}) -> Vector{Float64}
+trophic_levels(adj_matrix::AbstractMatrix) -> AbstractArray
 ```
 
 Compute trophic levels for all species from an adjacency matrix, where `adj_matrix[i, j] == 1` indicates species `i` consumes species `j`. Basal species are assigned trophic level `0.0`. Throws `ArgumentError` if no basal species are found (i.e., a cycle is detected).
@@ -129,7 +136,7 @@ Compute trophic levels for all species from an adjacency matrix, where `adj_matr
 ### `trophic_coherence`
 
 ```julia
-trophic_coherence(adj_matrix::Matrix{Int}, tl::AbstractVector{<:Real}) -> Float64
+trophic_coherence(adj_matrix::AbstractMatrix, tl::AbstractArray) -> AbstractFloat
 ```
 
 Compute trophic coherence `q` — the standard deviation of trophic distances across all links:

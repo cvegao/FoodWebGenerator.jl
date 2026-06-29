@@ -61,7 +61,7 @@ using Test
         tl = trophic_levels(adj_matrix)
         
         @test length(tl) == 2
-        @test tl[1] == 2.0
-        @test tl[2] == 1.0
+        @test tl[1] == 1.0
+        @test tl[2] == 0.0
     end
 end
