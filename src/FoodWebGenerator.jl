@@ -22,11 +22,11 @@ export FoodWeb, generate_food_web, trophic_levels, trophic_coherence
 Structure representing a food web with validated adjacency matrix and properties.
 
  Fields
-- `adj_matrix::AbstractMatrix{Int}`: Consumer-resource interactions matrix
-- `trophic_levels::AbstractVector{Float64}`: Trophic levels of each species
-- `coherence::Float64`: Trophic coherence measure (q)
-- `connectance:Float64`: C = L/S²  (L = number of links)
-- `basal_species::AbstractVector{Int}`: Indices of basal species (TL = 0)
+- `adj_matrix::AbstractMatrix`: Consumer-resource interactions matrix
+- `trophic_levels::AbstractArray`: Trophic levels of each species
+- `coherence::Real`: Trophic coherence measure (q)
+- `connectance:AbstractFloat`: C = L/S²  (L = number of links)
+- `basal_species::AbstractArray`: Indices of basal species (TL = 0)
 
 # Invariants
 1. adjacency matrix must be square
@@ -34,11 +34,11 @@ Structure representing a food web with validated adjacency matrix and properties
 3. 0 < connectance ≤ 1
 """
 struct FoodWeb
-    adj_matrix::Matrix{Int}
-    trophic_levels::AbstractVector{Float64}
-    coherence::Float64
-    connectance::Float64
-    basal_species::AbstractVector{Int}
+    adj_matrix::AbstractMatrix
+    trophic_levels::AbstractArray
+    coherence::Real
+    connectance::AbstractFloat
+    basal_species::AbstractArray
 
     function FoodWeb(adj, tl, q, conn, basal)
         size(adj, 1) == size(adj,2) || throw(ArgumentError("Adjacency matrix must be square"))
@@ -65,7 +65,7 @@ struct FoodWeb
     function FoodWeb(adj)
         size(adj, 1) == size(adj,2) || throw(ArgumentError("Adjacency matrix must be square"))
         
-        tl = trophic_levels(adj)
+        tl = trophic_levels(adj) .- 1.0  # Adjust to have basal species at TL=0
         q = trophic_coherence(adj, tl)
         c = sum(adj) / (size(adj, 1) ^ 2)
         basal = findall(==(0), sum(adj, dims=2)[:])
@@ -90,7 +90,12 @@ Calculate species trophic levels using linear system solution.
 # Notes
 Implements the method form Klaise & Johnson (2016)
 """
-function trophic_levels(adj_matrix::Matrix{Int})
+function trophic_levels(adj_matrix::AbstractMatrix)
+    # Validate: no self-loops
+    if any(adj_matrix[i,i] != 0 for i in axes(adj_matrix, 1))
+        throw(ArgumentError("Adjacency matrix contains self-loops"))
+    end
+
     in_degree = sum(adj_matrix, dims=2)[:]
     basal_species = findall(==(0), in_degree)
 
@@ -107,31 +112,30 @@ function trophic_levels(adj_matrix::Matrix{Int})
 end
 
 """
-    generate_food_web(S::Int, C::Float64, basal::Int; rng=Random.GLOBAL_RNG, T=0.25)
-    generate_food_web(S::Int, C::Float64, basal::Int, seed::Int; T=0.25)
+    generate_food_web(S::Int, C::AbstractFloat, basal::Int, seed::Int; T=0.25)
+    generate_food_web(adj_matrix::AbstractMatrix)
+    generate_food_web(adj_matrix::AbstractMatrix, trophic_levels::AbstractArray)
 Generate a food web with specified richness, connectance, and basal species.
 
 # Arguments
 - `S::Int`: Number of species (nodes) in the network.
-- `C::Float64`: Connectance (fraction of realized links).
+- `C::AbstractFloat`: Connectance (fraction of realized links).
 - `basal`: Number of basal species (1 ≤ basal < S)
-- `rng`: Random number generator (default: `Random.GLOBAL_RNG`). *(Method 1 only)*
-- `seed::Int`: Random seed for reproducibility. *(Method 2 only)*
-- `T::Float64`: Temperature parameter controlling trophic coherence (default: 0.25).
+- `seed::Int`: Random seed for reproducibility. *(Method 1 only)*
+- `adj_matrix::AbstractMatrix`: Predefined adjacency matrix. *(Method 2 and 3 only)*
+- `trophic_levels::AbstractArray`: Predefined trophic levels. *(Method 3 only)*
+- `T::AbstractFloat`: Temperature parameter controlling trophic coherence (default: 0.25).
 
 # Returns
 - `FoodWeb`: A validated food web structure with adjacency matrix, trophic levels, coherence, connectance, and basal species indices.
-
-# Notes
-- If `rng` is provided, it is used for all random choices; if `seed` is provided, a new RNG is constructed.
-- Both methods generate food webs with the same algorithm and output, differing only in how randomness is controlled.
-
 # Example
 ```
 julia>fw = generate_food_web(10, 0.15, 2, 42) # Uses seed 42
+julia>fw = generate_food_web([0 0; 0 1]) # Uses predefined adjacency matrix
+julia>fw = generate_food_web([0 0; 0 1], [0.0, 1.0]) # Uses predefined adjacency matrix and trophic levels
 ```
 """
-function generate_food_web(S::Int, C::Float64, basal::Int, seed::Int; T=0.25)
+function generate_food_web(S::Int, C::AbstractFloat, basal::Int, seed::Int; T=0.25)
     # Parameter validation
     (S >= 1)  || throw(ArgumentError("Species richness must be ≥ 1"))
     if S == 1
@@ -195,16 +199,24 @@ function generate_food_web(S::Int, C::Float64, basal::Int, seed::Int; T=0.25)
     return FoodWeb(adj_matrix, tl_final, q, C, basal_species)
 end
 
+function generate_food_web(adj_matrix::AbstractMatrix)
+    return FoodWeb(adj_matrix)
+end
+
+function generate_food_web(adj_matrix::AbstractMatrix, trophic_levels::AbstractArray)
+    return FoodWeb(adj_matrix, trophic_levels)
+end
+
 # --------------------------------
 #     Coherence Calculations
 # --------------------------------
 """
-    trophic_coherence(adj::AbstractMatrix{Int}, tl::AbstractVector{Float64})
+    trophic_coherence(adj::AbstractMatrix, tl::AbstractArray)
 Calculate trophic coherence (q) from adjacency matrix and trophic levels.
 
 # Arguments
-- `adj_matrix::AbstractMatrix{Int}`: Food web adjacency matrix
-- `tl::AbstractVector{Float64}`: Precomputed trophic levels
+- `adj_matrix::AbstractMatrix`: Food web adjacency matrix
+- `tl::AbstractArray`: Precomputed trophic levels
 
 # Returns
 - Trophic coherence measure q (q=0 maximally coherent)
@@ -213,10 +225,10 @@ Calculate trophic coherence (q) from adjacency matrix and trophic levels.
 Implements the formula from Johnson et al. (2014):
 q = √(⟨(h_i - h_j - 1)^2⟩) for all i→j links
 """
-function trophic_coherence(adj_matrix::Matrix{Int}, tl::AbstractVector{<:Real})
+function trophic_coherence(adj_matrix::AbstractMatrix, trophic_levels::AbstractArray)
     # Handle trophic levels vector with tl[basal_species] == 0.0 (as generated by generate_food_web)
-    if minimum(tl) < 1.0
-        tl = tl .+ 1.0
+    if minimum(trophic_levels) < 1.0
+        trophic_levels = trophic_levels .+ 1.0
     end
 
     sum_sq_diff = 0.0
@@ -225,7 +237,7 @@ function trophic_coherence(adj_matrix::Matrix{Int}, tl::AbstractVector{<:Real})
     for i in axes(adj_matrix, 1)
         for j in axes(adj_matrix, 2)
             if adj_matrix[i, j] > 0
-                diff = tl[i] - tl[j] - 1
+                diff = trophic_levels[i] - trophic_levels[j] - 1
                 sum_sq_diff += diff^2
                 link_count += 1
             end
