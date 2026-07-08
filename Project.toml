@@ -11,10 +11,8 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
 Distributions = "0.25.129"
-LinearAlgebra = "1.11.0"
-Random = "1.11.0"
 StatsBase = "0.34.12"
-julia = "1.10.10"
+julia = "1.10"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
