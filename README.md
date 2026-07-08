@@ -58,11 +58,11 @@ fw.basal_species   # Vector{Int}, indices of basal species
 
 ```julia
 struct FoodWeb
-    adj_matrix     :: Matrix{Int}
-    trophic_levels :: AbstractVector{Float64}
-    coherence      :: Float64
-    connectance    :: Float64
-    basal_species  :: AbstractVector{Int}
+    adj_matrix     :: AbstractMatrix
+    trophic_levels :: AbstractArray
+    coherence      :: Real
+    connectance    :: AbstractFloat
+    basal_species  :: AbstractArray
 end
 ```
 
