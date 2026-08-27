@@ -8,14 +8,14 @@ include("niche_model_test.jl")
 
 @testset "FoodWebGenerator Tests" begin
     @testset "generate_food_web" begin
-        @testset "Method 1: generate_food_web(S, C, seed, model)" begin
+        @testset "Method 1-3: generate_food_web(S, C, seed, model)" begin
             # Test 1: Generate a food web with a fixed seed and check properties
             S = 10
             C = 0.15
             basal = 2
             seed = 42
             # PPM
-            fw = generate_food_web(S, C, seed; basal=basal)
+            fw = generate_food_web(S, C, basal, seed)
             
             @test size(fw.adj_matrix) == (S, S)
             @test length(fw.trophic_levels) == S
@@ -23,7 +23,7 @@ include("niche_model_test.jl")
             @test all(fw.trophic_levels .>= 0.0)
 
             # Niche
-            fw = generate_food_web(S, C, seed, :niche)
+            fw = generate_food_web(S, C, seed)
             
             @test size(fw.adj_matrix) == (S, S)
             @test length(fw.trophic_levels) == S
@@ -31,7 +31,7 @@ include("niche_model_test.jl")
             @test all(fw.trophic_levels .>= 0.0)
         end
 
-        @testset "Method 2: generate_food_web(adj_matrix)" begin
+        @testset "Method 4: generate_food_web(adj_matrix)" begin
             # Test 2: Generate a food web with a predefined adjacency matrix
             adj_matrix = [0 0; 1 0]
             fw2 = generate_food_web(adj_matrix)
@@ -47,7 +47,7 @@ include("niche_model_test.jl")
         end
 
         
-        @testset "Method 3: generate_food_web(adj_matrix, trophic_levels)" begin
+        @testset "Method 5: generate_food_web(adj_matrix, trophic_levels)" begin
             # Test 3: Generate a food web with predefined adjacency matrix and trophic levels
             adj_matrix = [0 0; 1 0]
             tl         = [0.0, 1.0]

@@ -119,7 +119,9 @@ function trophic_levels(adj_matrix::AbstractMatrix)
 end
 
 """
-    generate_food_web(S::Int, C::AbstractFloat, seed::Int, model=:ppm; T=0.25, basal=nothing)
+    generate_food_web(S::Int, C::AbstractFloat, seed::Int, model::Symbol; T=0.25, basal=nothing)
+    generate_food_web(S::Int, C::AbstractFloat, seed::Int; model=:niche, T=0.25, basal=nothing)
+    generate_food_web(S::Int, C::AbstractFloat, basal::Int, seed::Int; model=:ppm, T=0.25)
     generate_food_web(adj_matrix::AbstractMatrix)
     generate_food_web(adj_matrix::AbstractMatrix, trophic_levels::AbstractArray)
 Generate a food web with specified richness, connectance, and (if using the Preferential Preying Model) basal species.
@@ -128,10 +130,9 @@ Generate a food web with specified richness, connectance, and (if using the Pref
 - `S::Int`: Number of species (nodes) in the network.
 - `C::AbstractFloat`: Connectance (fraction of realized links).
 - `seed::Int`: Random seed for reproducibility. *(Method 1 only)*
-- `model::Symbol`: Model used to generate the adjacency matrix. `model=:ppm` for Preferential Preying Model (default), `model=:niche` for Niche Model. 
-- `basal`: Number of basal species (1 ≤ basal < S). Only used if `model=:ppm`. *(Method 1 only)*
-- `adj_matrix::AbstractMatrix`: Predefined adjacency matrix. *(Method 2 and 3 only)*
-- `trophic_levels::AbstractArray`: Predefined trophic levels. *(Method 3 only)*
+- `model::Symbol`: Model used to generate the adjacency matrix. `model=:ppm` for Preferential Preying Model, `model=:niche` for Niche Model. 
+- `adj_matrix::AbstractMatrix`: Predefined adjacency matrix. *(Method 4 and 5 only)*
+- `trophic_levels::AbstractArray`: Predefined trophic levels. *(Method 5 only)*
 - `T::AbstractFloat`: Temperature parameter controlling trophic coherence (default: 0.25).
 
 # Returns
@@ -143,7 +144,61 @@ julia>fw = generate_food_web([0 0; 0 1]) # Uses predefined adjacency matrix
 julia>fw = generate_food_web([0 0; 0 1], [0.0, 1.0]) # Uses predefined adjacency matrix and trophic levels
 ```
 """
-function generate_food_web(S::Int, C::AbstractFloat, seed::Int, model=:ppm; T=0.25, basal=nothing)
+function generate_food_web(S::Int, C::AbstractFloat, seed::Int, model::Symbol; T=0.25, basal=nothing)
+    # Parameter validation
+    (model in [:niche, :ppm]) || throw(ArgumentError("`model` can take the values `:niche` or `:ppm`."))
+    (S >= 1)  || throw(ArgumentError("Species richness must be ≥ 1"))
+    if S == 1
+        (C == 0.0) || throw(ArgumentError("For S=1, connectance must be 0.0"))
+    else
+        (0 < C <= 1.0) || throw(ArgumentError("Connectance must be in (0,1] for S>1"))
+    end
+
+    rng = Xoshiro(seed)
+    if model == :ppm
+        (!isnothing(basal)) || throw(ArgumentError("Basal species number (`basal`) must be provided when using the Preferential Preying Model (PPM)"))
+        (1 <= basal <= S) || throw(ArgumentError("Invalid basal species number"))
+        adj_matrix = ppm(S, C, basal, rng; T=T)
+    else
+        adj_matrix = niche(S, C, rng)
+    end
+    
+    # Post-generation validation and packaging
+    tl_final      = trophic_levels(adj_matrix)
+    q             = trophic_coherence(adj_matrix, tl_final)
+    basal_species = findall(==(0), sum(adj_matrix, dims=2)[:])
+
+    return FoodWeb(adj_matrix, tl_final, q, C, basal_species)
+end
+
+function generate_food_web(S::Int, C::AbstractFloat, seed::Int; model=:niche, T=0.25, basal=nothing)
+    # Parameter validation
+    (model in [:niche, :ppm]) || throw(ArgumentError("`model` can take the values `:niche` or `:ppm`."))
+    (S >= 1)  || throw(ArgumentError("Species richness must be ≥ 1"))
+    if S == 1
+        (C == 0.0) || throw(ArgumentError("For S=1, connectance must be 0.0"))
+    else
+        (0 < C <= 1.0) || throw(ArgumentError("Connectance must be in (0,1] for S>1"))
+    end
+
+    rng = Xoshiro(seed)
+    if model == :ppm
+        (!isnothing(basal)) || throw(ArgumentError("Basal species number (`basal`) must be provided when using the Preferential Preying Model (PPM)"))
+        (1 <= basal <= S) || throw(ArgumentError("Invalid basal species number"))
+        adj_matrix = ppm(S, C, basal, rng; T=T)
+    else
+        adj_matrix = niche(S, C, rng)
+    end
+    
+    # Post-generation validation and packaging
+    tl_final      = trophic_levels(adj_matrix)
+    q             = trophic_coherence(adj_matrix, tl_final)
+    basal_species = findall(==(0), sum(adj_matrix, dims=2)[:])
+
+    return FoodWeb(adj_matrix, tl_final, q, C, basal_species)
+end
+
+function generate_food_web(S::Int, C::AbstractFloat, basal::Int, seed::Int; model=:ppm, T=0.25)
     # Parameter validation
     (model in [:niche, :ppm]) || throw(ArgumentError("`model` can take the values `:niche` or `:ppm`."))
     (S >= 1)  || throw(ArgumentError("Species richness must be ≥ 1"))

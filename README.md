@@ -1,4 +1,7 @@
 # FoodWebGenerator.jl
+--
+[![CI](https://github.com/cvegao/FoodWebGenerator.jl/actions/workflows/test.yml/badge.svg)](https://github.com/cvegao/FoodWebGenerator.jl/actions/workflows/test.yml)
+--
 
 A Julia module for generating and analyzing ecological food webs using the **Preferential Preying Model** (default) or the **Niche Model**. If using the Preferential Preying Model, the package produces networks with controllable species richness, connectance, number of basal species and trophic coherence, following the methodology of Klaise & Johnson (2016) and Johnson et al. (2014). The methodology presented in Williams and Martinez (200) is used if the Niche Model is chosen.
 
