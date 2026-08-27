@@ -11,6 +11,9 @@ module FoodWebGenerator
 using LinearAlgebra, Random, Distributions, StatsBase
 import Base: show
 
+include("niche_model.jl")
+include("ppm_model.jl")
+
 export FoodWeb, generate_food_web, trophic_levels, trophic_coherence
 
 # --------------------------
@@ -112,16 +115,17 @@ function trophic_levels(adj_matrix::AbstractMatrix)
 end
 
 """
-    generate_food_web(S::Int, C::AbstractFloat, basal::Int, seed::Int; T=0.25)
+    generate_food_web(S::Int, C::AbstractFloat, seed::Int, model=:ppm; T=0.25, basal=nothing)
     generate_food_web(adj_matrix::AbstractMatrix)
     generate_food_web(adj_matrix::AbstractMatrix, trophic_levels::AbstractArray)
-Generate a food web with specified richness, connectance, and basal species.
+Generate a food web with specified richness, connectance, and (if using the Preferential Preying Model) basal species.
 
 # Arguments
 - `S::Int`: Number of species (nodes) in the network.
 - `C::AbstractFloat`: Connectance (fraction of realized links).
-- `basal`: Number of basal species (1 ≤ basal < S)
 - `seed::Int`: Random seed for reproducibility. *(Method 1 only)*
+- `model::Symbol`: Model used to generate the adjacency matrix. `model=:ppm` for Preferential Preying Model (default), `model=:niche` for Niche Model. 
+- `basal`: Number of basal species (1 ≤ basal < S). Only used if `model=:ppm`. *(Method 1 only)*
 - `adj_matrix::AbstractMatrix`: Predefined adjacency matrix. *(Method 2 and 3 only)*
 - `trophic_levels::AbstractArray`: Predefined trophic levels. *(Method 3 only)*
 - `T::AbstractFloat`: Temperature parameter controlling trophic coherence (default: 0.25).
@@ -135,65 +139,28 @@ julia>fw = generate_food_web([0 0; 0 1]) # Uses predefined adjacency matrix
 julia>fw = generate_food_web([0 0; 0 1], [0.0, 1.0]) # Uses predefined adjacency matrix and trophic levels
 ```
 """
-function generate_food_web(S::Int, C::AbstractFloat, basal::Int, seed::Int; T=0.25)
+function generate_food_web(S::Int, C::AbstractFloat, seed::Int, model=:ppm; T=0.25, basal=nothing)
     # Parameter validation
+    (model in [:niche, :ppm]) || throw(ArgumentError("`model` can take the values `:niche` or `:ppm`."))
     (S >= 1)  || throw(ArgumentError("Species richness must be ≥ 1"))
     if S == 1
         (C == 0.0) || throw(ArgumentError("For S=1, connectance must be 0.0"))
     else
         (0 < C <= 1.0) || throw(ArgumentError("Connectance must be in (0,1] for S>1"))
     end
-    (1 <= basal <= S) || throw(ArgumentError("Invalid basal species number"))
 
-    # Random.seed!(seed)
     rng = Xoshiro(seed)
-    
-    adj_matrix = zeros(Int64, S, S)
-    tl = zeros(S)
-    tl[1:basal] .= 1.0
-
-    L = round(Int, C * S^2)
-    β = ((S^2 - basal^2) / (2 * L)) - 1
-
-    for i in (basal + 1) : S
-        # Preferential attachment core
-        # connect one random node to consumer i
-        n = i - 1  # ensures no self-loop
-
-        j = rand(rng, 1:n)  # initial prey
-        # j = rand(1:n)  # initial prey
-
-        adj_matrix[i, j] = 1.0
-
-        # Calculate niche probabilities
-        # find available prey excluding itself
-        available = findall(iszero, @view adj_matrix[i, 1:n])
-
-        # calculate number of additional prey
-        x = rand(rng, Beta(1, β))
-        # x = rand(Beta(1, β)) 
-
-        κ = min(round(Int, x * n), length(available))
-
-        if κ > 0 && !isempty(available)
-            # Calculate probabilities using existing trophic levels
-            P = exp.(-abs.(tl[j] .- tl[available]) ./ T)
-
-            # Weighted selection without replacement
-            # selected = sample(available, Weights(P), κ; replace=false)
-            selected = sample(rng, available, Weights(P), κ; replace=false)
-
-            adj_matrix[i, selected] .= 1.0
-        end
-
-        # Update trophic levels incrementally
-        k_in = sum(adj_matrix, dims=2)  # in-degree
-        tl[i] = 1 + sum(adj_matrix[i, 1:i] .* tl[1:i]) / k_in[i]
+    if model == :ppm
+        (!isnothing(basal)) || throw(ArgumentError("Basal species number (`basal`) must be provided when using the Preferential Preying Model (PPM)"))
+        (1 <= basal <= S) || throw(ArgumentError("Invalid basal species number"))
+        adj_matrix = ppm(S, C, basal, rng; T=T)
+    else
+        adj_matrix = niche(S, C, rng)
     end
-
+    
     # Post-generation validation and packaging
-    tl_final = trophic_levels(adj_matrix)
-    q = trophic_coherence(adj_matrix, tl_final)
+    tl_final      = trophic_levels(adj_matrix)
+    q             = trophic_coherence(adj_matrix, tl_final)
     basal_species = findall(==(0), sum(adj_matrix, dims=2)[:])
 
     return FoodWeb(adj_matrix, tl_final, q, C, basal_species)

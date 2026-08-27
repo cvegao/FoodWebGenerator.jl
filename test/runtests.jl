@@ -1,16 +1,29 @@
 using FoodWebGenerator
 
+using LinearAlgebra, Random, Distributions, StatsBase
 using Test
+
+include("ppp_model_test.jl")
+include("niche_model_test.jl")
 
 @testset "FoodWebGenerator Tests" begin
     @testset "generate_food_web" begin
-        @testset "Method 1: generate_food_web(S, C, basal, seed)" begin
+        @testset "Method 1: generate_food_web(S, C, seed, model)" begin
             # Test 1: Generate a food web with a fixed seed and check properties
             S = 10
             C = 0.15
             basal = 2
             seed = 42
-            fw = generate_food_web(S, C, basal, seed)
+            # PPM
+            fw = generate_food_web(S, C, seed; basal=basal)
+            
+            @test size(fw.adj_matrix) == (S, S)
+            @test length(fw.trophic_levels) == S
+            @test 0 < fw.connectance <= 1.0
+            @test all(fw.trophic_levels .>= 0.0)
+
+            # Niche
+            fw = generate_food_web(S, C, seed, :niche)
             
             @test size(fw.adj_matrix) == (S, S)
             @test length(fw.trophic_levels) == S
