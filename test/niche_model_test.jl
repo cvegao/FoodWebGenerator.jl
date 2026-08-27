@@ -54,7 +54,7 @@ include("../src/niche_model.jl")
 
             # At least one basal species exists (a species with no prey, i.e. an all-zero column)
             n_prey = vec(sum(adj, dims=1))
-            @test any(iszero, n_prey)
+            @test sum(n_prey .== 0) != 0
 
             # No fully isolated species (every species has at least one prey or one predator)
             n_predators = vec(sum(adj, dims=2))
