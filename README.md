@@ -1,10 +1,10 @@
 # FoodWebGenerator.jl
 
-A Julia module for generating and analyzing ecological food webs using the **Preferential Preying Model**. The model produces networks with controllable species richness, connectance, and trophic coherence, following the methodology of Klaise & Johnson (2016) and Johnson et al. (2014).
+A Julia module for generating and analyzing ecological food webs using the **Preferential Preying Model** (default) or the **Niche Model**. If using the Preferential Preying Model, the package produces networks with controllable species richness, connectance, number of basal species and trophic coherence, following the methodology of Klaise & Johnson (2016) and Johnson et al. (2014). The methodology presented in Williams and Martinez (200) is used if the Niche Model is chosen.
 
 ## Features
 
-- Generate food webs with specified species richness, connectance, and basal species count
+- Generate food webs with specified species richness, connectance, and basal species count (if PPM is chosen)
 - Compute **trophic levels** via linear system solution (Klaise & Johnson, 2016)
 - Compute **trophic coherence** (q) for any food web (Johnson et al., 2014)
 - Validated `FoodWeb` struct with automatic structural consistency checks
@@ -13,17 +13,17 @@ A Julia module for generating and analyzing ecological food webs using the **Pre
 
 ## Installation
 
-This module is not yet registered in the Julia General Registry. Install it directly from GitHub:
+This module is registered in the Julia General Registry.
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/cvegao/FoodWebGenerator.jl")
+Pkg.add("FoodWebGenerator")
 ```
 
 Or, in the Julia REPL package mode (`]`):
 
 ```
-pkg> add https://github.com/cvegao/FoodWebGenerator.jl
+pkg> add FoodWebGenerator
 ```
 
 ## Quick Start
@@ -32,7 +32,7 @@ pkg> add https://github.com/cvegao/FoodWebGenerator.jl
 using FoodWebGenerator
 
 # Generate a food web with 20 species, connectance 0.15, 3 basal species
-fw = generate_food_web(20, 0.15, 3, 42)   # seed = 42
+fw = generate_food_web(20, 0.15, 42, basal=3)   # seed = 42
 
 println(fw)
 # FoodWeb:
@@ -41,6 +41,19 @@ println(fw)
 #   Trophic coherence (q): 0.18...
 #   Basal species indices: [1, 2, 3]
 #   Trophic levels: [0.0, 0.0, 0.0, ...]
+#   Adjacency matrix (top left corner):
+#   ...
+
+# Generate a food web with 20 species and connectance 0.15 using the Niche Model
+fw = generate_food_web(20, 0.15, 42, :niche)   # seed = 42
+
+println(fw)
+# FoodWeb:
+#   Species richness (S): 20
+#   Connectance (C):      0.15
+#   Trophic coherence (q): 0.9090163521404221...
+#   Basal species indices: [1, 3, 9, 10, 12, 18]
+#   Trophic levels: [0.0, 1.0, 0.0, 1.0, 2.0, ...]
 #   Adjacency matrix (top left corner):
 #   ...
 
@@ -84,32 +97,35 @@ A validated structure representing a food web. Three constructors are available:
 ### `generate_food_web`
 
 ```julia
-generate_food_web(S, C, basal, seed; T=0.25)  -> FoodWeb
-generate_food_web(adj_matrix)                 -> FoodWeb
-generate_food_web(adj_matrix, trophic_levels) -> FoodWeb
+generate_food_web(S, C, seed, method=:ppm; T=0.25, basal=nothing)  -> FoodWeb
+generate_food_web(adj_matrix)                                      -> FoodWeb
+generate_food_web(adj_matrix, trophic_levels)                      -> FoodWeb
 ```
 
 Generate a food web using the Preferential Preying Model.
 
-| Parameter       | Type            | Description                                                           |
-|-----------------|-----------------|-----------------------------------------------------------------------|
-| `S`             | `Int`           | Number of species (nodes)                                             |
-| `C`             | `AbstractFloat` | Target connectance — fraction of realized links (`L / S²`)            |
-| `basal`         | `Int`           | Number of basal species (producers), `1 ≤ basal < S`                  |
-| `seed`          | `Int`           | Integer seed for a fresh `Xoshiro` RNG (method 1)                     |
-| `T`             | `AbstractFloat` | Temperature parameter controlling trophic coherence (default: `0.25`) |
-| `adj_matrix`    | `AbstractMatrix`| Predefined binary adjacency matrix (method 2 & 3)                     |
-| `trophic_level` | `AbstractArray` | Predefined trophic levels (TL ≥ 0) (method 3).                        |
+| Parameter       | Type            | Description                                                                      |
+|-----------------|-----------------|----------------------------------------------------------------------------------|
+| `S`             | `Int`           | Number of species (nodes)                                                        |
+| `C`             | `AbstractFloat` | Target connectance — fraction of realized links (`L / S²`)                       |
+| `basal`         | `Int`           | Number of basal species (producers), `1 ≤ basal < S` (when `model=:ppm`)         |
+| `seed`          | `Int`           | Integer seed for a fresh `Xoshiro` RNG (method 1)                                |
+| `model`         | `Symbol`        | Model to be used to generate the adjacency matrix (method 1; `:ppm` or `:niche`) |
+| `T`             | `AbstractFloat` | Temperature parameter controlling trophic coherence (default: `0.25`)            |
+| `adj_matrix`    | `AbstractMatrix`| Predefined binary adjacency matrix (method 2 & 3)                                |
+| `trophic_level` | `AbstractArray` | Predefined trophic levels (TL ≥ 0) (method 3).                                   |
 
 **Returns:** a validated `FoodWeb` object.
 
 ```julia
 # Method 1
-fw  = generate_food_web(50, 0.10, 5, 123)
+fw = generate_food_web(50, 0.10, 123; basal=10)        # PPM
+fw = generate_food_web(50, 0.10, 123, :ppm; basal=10)  # PPM
+fw = generate_food_web(50, 0.10, 123, :niche)          # Niche model 
 
-# Adjust trophic coherence via temperature
-fw_coherent    = generate_food_web(50, 0.10, 5, 1; T=0.1)   # more coherent
-fw_incoherent  = generate_food_web(50, 0.10, 5, 1; T=1.0)   # less coherent
+# Adjust trophic coherence via temperature (only PPM)
+fw_coherent    = generate_food_web(50, 0.10, 1; T=0.1 basal=5)   # more coherent
+fw_incoherent  = generate_food_web(50, 0.10, 1; T=1.0, basal=5)  # less coherent
 
 # Method 2
 adj_matrix = [0 0 0; 1 0 0; 0 1 0]
@@ -167,10 +183,9 @@ The temperature parameter `T` directly controls trophic coherence: lower `T` pro
 | `StatsBase` | Weighted sampling without replacement |
 
 ## References
-
-- Klaise, J. and Johnson, S. (2016). *From neurons to epidemics: How trophic coherence affects spreading processes.* Chaos: An Interdisciplinary Journal of Nonlinear Science, 26(6):065310.
 - Johnson, S., Domínguez-García, V., Donetti, L., and Muñoz, M. A. (2014). *Trophic coherence determines food-web stability.* Proceedings of the National Academy of Sciences, 111(50):17923–17928.
+- Klaise, J. and Johnson, S. (2016). *From neurons to epidemics: How trophic coherence affects spreading processes.* Chaos: An Interdisciplinary Journal of Nonlinear Science, 26(6):065310.
+- Williams, R. and Martinez, N. (2000). *Simple Rules Yield Complex Food Webs*. Nature 404, n.º 6774: 180-83.
 
 ## License
-
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

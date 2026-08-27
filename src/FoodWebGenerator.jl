@@ -111,7 +111,11 @@ function trophic_levels(adj_matrix::AbstractMatrix)
     b[basal_species] .= 1
     A = diagm(b) .- adj_matrix
 
-    return A \ b .- 1.0  # Adjust to have basal species at TL=0
+    tls = A \ b .- 1.0  # Adjust to have basal species at TL=0
+
+    threshold = 1e-2  # TL < 1e-2 -> TL = 0
+    tls[tls .< threshold] .= 0.0
+    return tls
 end
 
 """

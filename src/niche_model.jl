@@ -51,7 +51,7 @@ function connect_nodes!(adj_matrix, n_i, r_i, c_i, disconnected, β_dist, rng=Ra
     max_x_i = c_i .+ (r_i ./ 2)
     
     for i in disconnected  # axes(adj_matrix, 2)
-        @. adj_matrix[:, i] = !isless(n_i, min_x_i[i]) * isless(n_i, max_x_i[i])
+        @. adj_matrix[i, :] = !isless(n_i, min_x_i[i]) * isless(n_i, max_x_i[i])  # i eats j (row -> column)
     end
     
     for i in disconnected  # axes(adj_matrix, 1)
