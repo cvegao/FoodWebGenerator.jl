@@ -1,4 +1,19 @@
+"""
+    niche(S, C, rng=Random.default_rng()) -> Matrix{Int}
+
+Niche Model (Williams & Martinez 2000). Each species gets a niche value
+`n_i ~ U(0,1)` and a feeding range `r_i = n_i · x`, with `x ~ Beta(1, 1/(2C) − 1)`
+(mean `2C`). The range centre is drawn from `U(r_i/2, n_i)`, and `i` eats every
+species whose niche value falls in its range. The species with the smallest `n_i` has
+`r_i = 0`, which guarantees at least one basal species. Species without links are redrawn
+until none are isolated. Requires `0 < C < 0.5`.
+
+Returns an `S×S` 0/1 matrix, `adj[i, j] == 1` if `i` eats `j`, with no self-loops.
+Internal; use `generate_food_web(…; model=:niche)`.
+"""
 function niche(S::Int, C::AbstractFloat, rng=Random.default_rng())
+    C < 0.5 || throw(ArgumentError("Niche model requires C < 0.5 (Beta shape parameter must be > 0)"))
+
     # variables definition
     adj_matrix   =  zeros(Int64, S, S)  # all species start having no interactions
     in_degree    = zeros(S)
@@ -16,6 +31,7 @@ function niche(S::Int, C::AbstractFloat, rng=Random.default_rng())
     draw values from [0, 1] whose expected value is 2C and then multiplying that value by `n_i`
     to obtain the desired C.
     =#
+
     β      = (1 / (2 * C)) - 1
     β_dist = Beta(1, β)
 

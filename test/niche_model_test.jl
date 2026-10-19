@@ -1,4 +1,3 @@
-include("../src/niche_model.jl")
 
 @testset "Niche Model Tests" begin
     @testset "Connectance matches target C" begin
@@ -22,7 +21,7 @@ include("../src/niche_model.jl")
             empirical_C = zeros(n_reps)
 
             for r in 1:n_reps
-                adj = niche(S, C, rng)
+                adj = FoodWebGenerator.niche(S, C, rng)
                 empirical_C[r] = sum(adj) / S^2
             end
 
@@ -41,7 +40,7 @@ include("../src/niche_model.jl")
         n_reps = 50
 
         for r in 1:n_reps
-            adj = niche(S, C, rng)
+            adj = FoodWebGenerator.niche(S, C, rng)
 
             # No species is its own predator/prey (no self-loops)
             @test all(iszero, diag(adj))
@@ -66,12 +65,12 @@ include("../src/niche_model.jl")
         rng = MersenneTwister(7)
 
         # S = 1: no possible links, should return an all-zero 1x1 matrix
-        adj1 = niche(1, 0.1, rng)
+        adj1 = FoodWebGenerator.niche(1, 0.1, rng)
         @test size(adj1) == (1, 1)
         @test adj1[1, 1] == 0
 
         # Very low connectance still returns a valid, fully-populated adjacency matrix
-        adj_low = niche(20, 0.01, rng)
+        adj_low = FoodWebGenerator.niche(20, 0.01, rng)
         @test size(adj_low) == (20, 20)
         @test all(iszero, diag(adj_low))
     end

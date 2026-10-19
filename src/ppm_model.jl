@@ -1,3 +1,17 @@
+"""
+    ppm(S, C, basal, rng=Random.default_rng(); T=0.25) -> Matrix{Int}
+
+Preferential Preying Model (Johnson et al. 2014). Species `1:basal` are basal (internal level 1).
+Each consumer `i > basal`, in order:
+1. picks a random initial prey `j < i`;
+2. draws `x ~ Beta(1, β)`, with `β = (S² − basal²)/(2L) − 1` and `L = round(C·S²)`, and adds
+   `κ = min(round(x·(i−1)), available)` more prey;
+3. samples these prey without replacement with weights `exp(−|h_j − h_k| / T)`;
+4. sets its level to `1 + mean(prey levels)`.
+
+Small `T` favours prey close in trophic level to the first prey, so the web is more coherent.
+Internal; use `generate_food_web(…; model=:ppm)`.
+"""
 function ppm(S::Int, C::AbstractFloat, basal::Int, rng=Random.default_rng(); T=0.25)
     # variables definition
     adj_matrix   = zeros(Int64, S, S)

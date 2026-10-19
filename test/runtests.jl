@@ -3,7 +3,7 @@ using FoodWebGenerator
 using LinearAlgebra, Random, Distributions, StatsBase
 using Test
 
-include("ppp_model_test.jl")
+include("ppm_model_test.jl")
 include("niche_model_test.jl")
 
 @testset "FoodWebGenerator Tests" begin

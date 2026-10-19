@@ -1,74 +1,105 @@
 # FoodWebGenerator.jl
 
 [![CI](https://github.com/cvegao/FoodWebGenerator.jl/actions/workflows/test.yml/badge.svg)](https://github.com/cvegao/FoodWebGenerator.jl/actions/workflows/test.yml)
---
 
-A Julia module for generating and analyzing ecological food webs using the **Preferential Preying Model** (default) or the **Niche Model**. If using the Preferential Preying Model, the package produces networks with controllable species richness, connectance, number of basal species and trophic coherence, following the methodology of Klaise & Johnson (2016) and Johnson et al. (2014). The methodology presented in Williams and Martinez (2000) is used if the Niche Model is chosen.
+Generate and analyse model food webs in Julia with the **Preferential Preying Model** (PPM; Johnson et al., 2014; Klaise & Johnson, 2016) or the **Niche Model** (Williams & Martinez, 2000).
+
+The PPM gives control over species richness, connectance, number of basal species and trophic coherence. The Niche Model gives control over richness and connectance.
 
 ## Features
 
-- Generate food webs with specified species richness, connectance, and basal species count (if PPM is chosen)
-- Compute **trophic levels** via linear system solution (Klaise & Johnson, 2016)
-- Compute **trophic coherence** (q) for any food web (Johnson et al., 2014)
-- Validated `FoodWeb` struct with automatic structural consistency checks
-- Reproducible generation via seed or custom `AbstractRNG`
-- Lightweight dependency footprint: `LinearAlgebra`, `Random`, `Distributions`, `StatsBase`
+- Two generative models: `:ppm` and `:niche`
+- Trophic levels by linear-system solution (Klaise & Johnson, 2016)
+- Trophic coherence `q` for any web (Johnson et al., 2014)
+- Validated `FoodWeb` struct (square matrix, consistent lengths, valid connectance)
+- Reproducible: every generator takes an integer seed (`Xoshiro`)
+- Import your own adjacency matrix (and optionally trophic levels)
+- Light dependencies: `LinearAlgebra`, `Random`, `Distributions`, `StatsBase`
 
 ## Installation
 
-This module is registered in the Julia General Registry.
-
 ```julia
 using Pkg
-Pkg.add("FoodWebGenerator")
+Pkg.add("FoodWebGenerator")   # if registered
+# otherwise:
+Pkg.add(url="[https://github.com/cvegao/FoodWebGenerator.jl](https://github.com/cvegao/FoodWebGenerator.jl)")
 ```
 
-Or, in the Julia REPL package mode (`]`):
+## Conventions
 
-```
-pkg> add FoodWebGenerator
-```
+- `adj[i, j] = 1` means **species `i` eats species `j`** (rows are consumers).
+- Basal species have an empty row and trophic level `0.0`.
+- Connectance is `C = L / S²`.
+- Trophic coherence `q = 0` is a perfectly coherent web.
 
-## Quick Start
+## Quick start
 
 ```julia
 using FoodWebGenerator
 
-# Generate a food web with 20 species, connectance 0.15, 3 basal species
-fw = generate_food_web(20, 0.15, 42, basal=3)   # seed = 42
+# PPM: S = 20, C = 0.15, 3 basal species, seed 42
+fw = generate_food_web(20, 0.15, 3, 42)
+
+# Niche model: S = 20, C = 0.15, seed 42
+fw = generate_food_web(20, 0.15, 42, :niche)
 
 println(fw)
 # FoodWeb:
 #   Species richness (S): 20
-#   Connectance (C):      0.15
-#   Trophic coherence (q): 0.18...
-#   Basal species indices: [1, 2, 3]
-#   Trophic levels: [0.0, 0.0, 0.0, ...]
+#   Connectance (C): …
+#   Trophic coherence (q): …
+#   Basal species indices: […]
+#   Trophic levels: […]
 #   Adjacency matrix (top left corner):
-#   ...
+#   …
 
-# Generate a food web with 20 species and connectance 0.15 using the Niche Model
-fw = generate_food_web(20, 0.15, 42, :niche)   # seed = 42
-
-println(fw)
-# FoodWeb:
-#   Species richness (S): 20
-#   Connectance (C):      0.15
-#   Trophic coherence (q): 0.9090163521404221...
-#   Basal species indices: [1, 3, 9, 10, 12, 18]
-#   Trophic levels: [0.0, 1.0, 0.0, 1.0, 2.0, ...]
-#   Adjacency matrix (top left corner):
-#   ...
-
-# Access fields directly
-fw.adj_matrix      # S×S Int adjacency matrix
-fw.trophic_levels  # Vector{Float64} of trophic levels
-fw.coherence       # Float64, trophic coherence q
-fw.connectance     # Float64, C = L / S²
-fw.basal_species   # Vector{Int}, indices of basal species
+fw.adj_matrix      # S×S Int matrix
+fw.trophic_levels  # trophic levels (basal = 0)
+fw.coherence       # trophic coherence q
+fw.connectance     # C = L / S²
+fw.basal_species   # indices of basal species
 ```
 
-## API Reference
+## API
+
+### `generate_food_web`
+
+```julia
+generate_food_web(S, C, seed, model; T=0.25, basal=nothing)   # (1)
+generate_food_web(S, C, seed; model=:niche, T=0.25, basal=nothing)  # (2)
+generate_food_web(S, C, basal, seed; model=:ppm, T=0.25)      # (3)
+generate_food_web(adj_matrix)                                 # (4)
+generate_food_web(adj_matrix, trophic_levels)                 # (5)
+```
+
+| Argument | Type | Description |
+|---|---|---|
+| `S` | `Int` | Species richness (≥ 1) |
+| `C` | `AbstractFloat` | Target connectance in `(0, 1]` (`0.0` if `S = 1`); `C < 0.5` for the niche model |
+| `seed` | `Int` | Seed for a new `Xoshiro` RNG |
+| `model` | `Symbol` | `:ppm` or `:niche` |
+| `basal` | `Int` | Number of basal species, `1 ≤ basal ≤ S`; **required for `:ppm`**, ignored by `:niche` |
+| `T` | `AbstractFloat` | PPM temperature controlling coherence (default `0.25`); ignored by `:niche` |
+| `adj_matrix` | `AbstractMatrix` | Own adjacency matrix (no self-loops, ≥ 1 basal species) |
+| `trophic_levels` | `AbstractArray` | Own trophic levels (basal = 0) |
+
+> **Defaults.** Method (2) defaults to `model=:niche`. For PPM, either use method (3) or pass `model=:ppm, basal=…` explicitly.
+
+```julia
+generate_food_web(50, 0.10, 5, 123)                         # PPM (3)
+generate_food_web(50, 0.10, 123; model=:ppm, basal=5)       # PPM (2)
+generate_food_web(50, 0.10, 123, :ppm; basal=5)             # PPM (1)
+generate_food_web(50, 0.10, 123, :niche)                    # Niche (1)
+
+# Tune coherence with T (PPM only)
+fw_coherent   = generate_food_web(50, 0.10, 5, 1; T=0.1)    # lower q
+fw_incoherent = generate_food_web(50, 0.10, 5, 1; T=1.0)    # higher q
+
+# Own data
+adj = [0 0 0; 1 0 0; 0 1 0]
+fw  = generate_food_web(adj)
+fw  = generate_food_web(adj, [0.0, 1.0, 2.0])
+```
 
 ### `FoodWeb`
 
@@ -82,113 +113,74 @@ struct FoodWeb
 end
 ```
 
-A validated structure representing a food web. Three constructors are available:
-
 | Constructor | Description |
 |---|---|
-| `FoodWeb(adj, tl, q, conn, basal)` | Full constructor with all fields |
-| `FoodWeb(adj, tl)` | Computes `q`, `connectance`, and `basal_species` automatically |
-| `FoodWeb(adj)` | Computes all derived quantities from the adjacency matrix |
+| `FoodWeb(adj, tl, q, conn, basal)` | All fields supplied; validated |
+| `FoodWeb(adj, tl)` | Computes `q`, connectance and basal species |
+| `FoodWeb(adj)` | Computes trophic levels and everything else |
 
-**Invariants enforced at construction:**
-- Adjacency matrix must be square
-- Length of `trophic_levels` must match matrix dimensions
-- Connectance must be in `(0, 1]` (or exactly `0.0` for `S=1`)
-
----
-
-### `generate_food_web`
-
-```julia
-generate_food_web(S, C, seed, method=:ppm; T=0.25, basal=nothing)  -> FoodWeb
-generate_food_web(adj_matrix)                                      -> FoodWeb
-generate_food_web(adj_matrix, trophic_levels)                      -> FoodWeb
-```
-
-Generate a food web using the Preferential Preying Model.
-
-| Parameter       | Type            | Description                                                                      |
-|-----------------|-----------------|----------------------------------------------------------------------------------|
-| `S`             | `Int`           | Number of species (nodes)                                                        |
-| `C`             | `AbstractFloat` | Target connectance — fraction of realized links (`L / S²`)                       |
-| `basal`         | `Int`           | Number of basal species (producers), `1 ≤ basal < S` (when `model=:ppm`)         |
-| `seed`          | `Int`           | Integer seed for a fresh `Xoshiro` RNG (method 1)                                |
-| `model`         | `Symbol`        | Model to be used to generate the adjacency matrix (method 1; `:ppm` or `:niche`) |
-| `T`             | `AbstractFloat` | Temperature parameter controlling trophic coherence (default: `0.25`)            |
-| `adj_matrix`    | `AbstractMatrix`| Predefined binary adjacency matrix (method 2 & 3)                                |
-| `trophic_level` | `AbstractArray` | Predefined trophic levels (TL ≥ 0) (method 3).                                   |
-
-**Returns:** a validated `FoodWeb` object.
-
-```julia
-# Method 1
-fw = generate_food_web(50, 0.10, 123; basal=10)        # PPM
-fw = generate_food_web(50, 0.10, 123, :ppm; basal=10)  # PPM
-fw = generate_food_web(50, 0.10, 123, :niche)          # Niche model 
-
-# Adjust trophic coherence via temperature (only PPM)
-fw_coherent    = generate_food_web(50, 0.10, 1; T=0.1 basal=5)   # more coherent
-fw_incoherent  = generate_food_web(50, 0.10, 1; T=1.0, basal=5)  # less coherent
-
-# Method 2
-adj_matrix = [0 0 0; 1 0 0; 0 1 0]
-fw         = generate_food_web(adj_matrix)
-
-# Method 3
-adj_matrix     = [0 0 0; 1 0 0; 0 1 0]
-trophic_levels = [0, 1, 2]
-fw             = generate_food_web(adj_matrix, trophic_levels)
-```
-
----
+Invariants: square matrix; `length(tl) == S`; `0 < connectance ≤ 1` (`0.0` if `S = 1`).
 
 ### `trophic_levels`
 
 ```julia
-trophic_levels(adj_matrix::AbstractMatrix) -> AbstractArray
+trophic_levels(adj_matrix::AbstractMatrix) -> Vector{Float64}
 ```
 
-Compute trophic levels for all species from an adjacency matrix, where `adj_matrix[i, j] == 1` indicates species `i` consumes species `j`. Basal species are assigned trophic level `0.0`. Throws `ArgumentError` if no basal species are found (i.e., a cycle is detected).
-
----
+Solves `(D − A)h = D·1` with `D = diag(max(k_in, 1))` and shifts by −1 so basal species are `0.0` (values < 1e-2 are set to 0). Throws `ArgumentError` for self-loops or if there are no basal species.
 
 ### `trophic_coherence`
 
 ```julia
-trophic_coherence(adj_matrix::AbstractMatrix, tl::AbstractArray) -> AbstractFloat
+trophic_coherence(adj_matrix, trophic_levels) -> Float64
 ```
 
-Compute trophic coherence `q` — the standard deviation of trophic distances across all links:
+$$q = \sqrt{\left\langle (h_i - h_j - 1)^2 \right\rangle}$$
 
-$$q = \sqrt{\langle (h_i - h_j - 1)^2 \rangle}$$
+The average runs over all links `i → j`. This is the root-mean-square deviation of trophic distances from 1. If the minimum level is below 1, levels are shifted by +1 internally. It returns `0.0` for a web with no links.
 
-where the average is taken over all directed links `i → j`. A value of `q = 0` indicates a maximally coherent food web.
+## Algorithms
 
-## Algorithm
+**Preferential Preying Model**
+1. Basal species are seeded at level 1.
+2. Each consumer `i` picks a random initial prey `j < i`.
+3. It draws `x ~ Beta(1, β)` with `β = (S² − basal²)/(2L) − 1` and `L = round(C·S²)`, and adds `κ = min(round(x·(i−1)), available)` further prey.
+4. Further prey are sampled without replacement with weights `exp(−|h_j − h_k| / T)`.
+5. The consumer's level becomes `1 + mean(prey levels)`.
+6. After all species are placed, trophic levels and `q` are recomputed exactly for the final web.
 
-`generate_food_web` implements the **Preferential Preying Model** (PPM):
+Low `T` concentrates links on prey at similar trophic level, so webs are more coherent.
 
-1. Basal species are seeded at trophic level 1.
-2. Each new consumer `i` is connected to a random initial prey `j` (no self-loops).
-3. Additional prey are sampled *without replacement* using weights proportional to `exp(-|h_j - h_prey| / T)`, which biases prey choice toward species at similar trophic levels.
-4. The number of additional prey follows a `Beta(1, β)` distribution, where β is derived from `S`, `C`, and the number of basal species.
-5. After all species are placed, trophic levels are recomputed exactly via linear algebra, and the final `FoodWeb` object is validated and returned.
+**Niche Model**
+1. Each species gets a niche value `n_i ~ U(0,1)`.
+2. Its feeding range is `r_i = n_i · x`, with `x ~ Beta(1, 1/(2C) − 1)`.
+3. The range centre is drawn from `U(r_i/2, n_i)`, and `i` eats all species whose niche value lies in its range.
+4. The species with the smallest `n_i` has `r_i = 0`, so there is always a basal species.
+5. Isolated species are redrawn until none remain.
 
-The temperature parameter `T` directly controls trophic coherence: lower `T` produces more coherent webs (links tend to span exactly one trophic level).
+## Testing
+
+```julia
+using Pkg; Pkg.test("FoodWebGenerator")
+```
+
+The tests cover the generators, the structural properties of the niche webs (no self-loops, binary matrix, at least one basal species, no isolated species), and mean connectance against the target.
 
 ## Dependencies
 
 | Package | Role |
 |---|---|
-| `LinearAlgebra` | Trophic level linear system solve |
-| `Random` | RNG interface and `Xoshiro` |
-| `Distributions` | `Beta` distribution for prey count sampling |
+| `LinearAlgebra` | Trophic-level linear solve |
+| `Random` | RNG and `Xoshiro` |
+| `Distributions` | `Beta` and `Uniform` sampling |
 | `StatsBase` | Weighted sampling without replacement |
 
 ## References
-- Johnson, S., Domínguez-García, V., Donetti, L., and Muñoz, M. A. (2014). *Trophic coherence determines food-web stability.* Proceedings of the National Academy of Sciences, 111(50):17923–17928.
-- Klaise, J. and Johnson, S. (2016). *From neurons to epidemics: How trophic coherence affects spreading processes.* Chaos: An Interdisciplinary Journal of Nonlinear Science, 26(6):065310.
-- Williams, R. and Martinez, N. (2000). *Simple Rules Yield Complex Food Webs*. Nature 404, n.º 6774: 180-83.
+
+- Johnson, S., Domínguez-García, V., Donetti, L., and Muñoz, M. A. (2014). Trophic coherence determines food-web stability. *PNAS*, 111(50):17923–17928.
+- Klaise, J. and Johnson, S. (2016). From neurons to epidemics: How trophic coherence affects spreading processes. *Chaos*, 26(6):065310.
+- Williams, R. and Martinez, N. (2000). Simple rules yield complex food webs. *Nature*, 404(6774):180–183.
 
 ## License
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+MIT. See [LICENSE](LICENSE).
